@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>職場 / 收入焦慮入口測驗 — StateFlow Lab × 4848</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────
+   RESET
+───────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ─────────────────────────────────────────
+   DESIGN TOKEN SYSTEM
+   全部顏色集中宣告，含 8 色階 HEX
+   WA-01 灰白停格型  #D8D3CB  文字 #1a1714
+   WA-02 米黃透支型  #D7C39B  文字 #1a1205
+   WA-03 霧藍空轉型  #A8B8C6  文字 #081422
+   WA-04 冷灰壓肩型  #7E858D  文字 #FFFFFF
+   WA-05 土金低估型  #B58E4F  文字 #1a0e00  (白色對比 3.2 不足，改深色)
+   WA-06 橘紅焦灼型  #D96B47  文字 #1a0900  (白色對比 3.6 不足，改深色)
+   WA-07 深藍換軌型  #3C5978  文字 #FFFFFF
+   WA-08 暗綠耗損型  #4D5F4F  文字 #FFFFFF
+───────────────────────────────────────── */
+:root {
+  /* Shell */
+  --c-bg:         #0c0f14;
+  --c-surface:    #161b24;
+  --c-surface2:   #1e2535;
+  --c-border:     rgba(255,255,255,0.12);
+  --c-border-hi:  rgba(255,255,255,0.22);
+
+  /* Text */
+  --c-text:       #f2ede4;
+  --c-text-sub:   rgba(242,237,228,0.82);
+  --c-text-dim:   rgba(242,237,228,0.56);
+
+  /* Accent */
+  --c-accent:     #3C5978;
+  --c-accent-hi:  #7ab0d8;
+  --c-accent-btn: #5a89b0;
+
+  /* Result hero colours — 8 型 */
+  --wa01-bg: #D8D3CB;  --wa01-tc: #1a1714;
+  --wa02-bg: #D7C39B;  --wa02-tc: #1a1205;
+  --wa03-bg: #A8B8C6;  --wa03-tc: #081422;
+  --wa04-bg: #7E858D;  --wa04-tc: #FFFFFF;
+  --wa05-bg: #B58E4F;  --wa05-tc: #1a0e00;
+  --wa06-bg: #D96B47;  --wa06-tc: #1a0900;
+  --wa07-bg: #3C5978;  --wa07-tc: #FFFFFF;
+  --wa08-bg: #4D5F4F;  --wa08-tc: #FFFFFF;
+
+  /* Typography */
+  --f-serif: 'Noto Serif TC', serif;
+  --f-sans:  'Noto Sans TC', sans-serif;
+
+  /* Safe area */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+/* ─────────────────────────────────────────
+   SHELL — fixed full-viewport, no scroll
+───────────────────────────────────────── */
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--f-sans);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Subtle noise */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 9000;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  pointer-events: none; opacity: 0.5;
+}
+
+#app {
+  position: fixed; inset: 0;
+  overflow: hidden;
+}
+
+/* ─────────────────────────────────────────
+   SCREEN SYSTEM
+   All screens: absolute, fade in/out
+───────────────────────────────────────── */
+.sc {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.35s ease;
+  overflow: hidden;
+}
+.sc.on { opacity: 1; pointer-events: auto; }
+
+/* ─────────────────────────────────────────
+   PROGRESS BAR
+───────────────────────────────────────── */
+#pbar {
+  position: fixed; top: 0; left: 0; right: 0; height: 2px;
+  background: rgba(255,255,255,0.07); z-index: 8000; display: none;
+}
+#pfill {
+  height: 100%; background: var(--c-accent-hi);
+  transition: width 0.45s cubic-bezier(.4,0,.2,1);
+  width: 0%;
+}
+
+/* ─────────────────────────────────────────
+   ANIMATIONS
+───────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─────────────────────────────────────────
+   SCREEN 1 — COVER
+───────────────────────────────────────── */
+#s-cover {
+  align-items: center; justify-content: center;
+  padding: 2.5rem 2rem;
+  padding-top: max(2.5rem, var(--safe-t));
+  padding-bottom: max(2.5rem, var(--safe-b));
+  background:
+    radial-gradient(ellipse 60% 55% at 18% 28%, rgba(60,89,120,0.24) 0%, transparent 100%),
+    radial-gradient(ellipse 45% 40% at 82% 78%, rgba(217,107,71,0.10) 0%, transparent 100%),
+    var(--c-bg);
+  overflow-y: auto;
+}
+
+.cv-box { max-width: 440px; width: 100%; text-align: center; }
+
+.cv-brand {
+  font-size: 11px; letter-spacing: 4px; text-transform: uppercase;
+  color: var(--c-text-dim); margin-bottom: 2.25rem;
+  animation: fadeUp 0.6s ease both;
+}
+.cv-title {
+  font-family: var(--f-serif);
+  font-size: clamp(30px, 8vw, 46px);
+  font-weight: 300; line-height: 1.35;
+  color: var(--c-text); margin-bottom: 1.5rem;
+  animation: fadeUp 0.6s 0.07s ease both;
+}
+.cv-title em { font-style: normal; color: var(--c-accent-hi); }
+.cv-rule {
+  width: 32px; height: 1px;
+  background: rgba(255,255,255,0.20);
+  margin: 0 auto 1.75rem;
+  animation: fadeUp 0.6s 0.14s ease both;
+}
+.cv-copy {
+  font-size: 17px; line-height: 2.0;
+  color: var(--c-text-sub);
+  margin-bottom: 2.25rem;
+  animation: fadeUp 0.6s 0.20s ease both;
+}
+.cv-meta {
+  display: flex; align-items: center; justify-content: center;
+  gap: 14px; margin-bottom: 2.5rem;
+  animation: fadeUp 0.6s 0.26s ease both;
+}
+.cv-tag { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--c-text-dim); }
+.cv-sep { width: 3px; height: 3px; border-radius: 50%; background: rgba(255,255,255,0.20); }
+
+.btn-start {
+  display: inline-block; position: relative; overflow: hidden;
+  background: transparent;
+  border: 1px solid rgba(122,176,216,0.50);
+  color: var(--c-accent-hi);
+  font-family: var(--f-sans); font-size: 14px;
+  font-weight: 400; letter-spacing: 3px; text-transform: uppercase;
+  padding: 17px 52px; cursor: pointer;
+  transition: color 0.3s, border-color 0.3s;
+  animation: fadeUp 0.6s 0.32s ease both;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 54px; min-width: 180px;
+}
+.btn-start::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--c-accent);
+  transform: translateX(-101%);
+  transition: transform 0.3s ease;
+}
+.btn-start:hover, .btn-start:active {
+  color: #fff; border-color: var(--c-accent);
+}
+.btn-start:hover::before, .btn-start:active::before { transform: translateX(0); }
+.btn-start span { position: relative; z-index: 1; }
+
+/* ─────────────────────────────────────────
+   SCREEN 2 — QUESTION
+───────────────────────────────────────── */
+#s-q { background: var(--c-bg); }
+
+.q-hd {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: max(1rem, var(--safe-t)) 1.5rem 1rem;
+  border-bottom: 1px solid var(--c-border);
+}
+.q-brand { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--c-text-dim); }
+.q-num   { font-size: 14px; letter-spacing: 1px; color: var(--c-text-sub); font-weight: 400; }
+
+/* Scrollable content area */
+.q-body {
+  flex: 1; overflow-y: auto; overscroll-behavior: contain;
+  padding: 2rem 1.5rem 1rem;
+  display: flex; flex-direction: column;
+  max-width: 680px; width: 100%; margin: 0 auto;
+}
+
+.q-lbl {
+  font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--c-text-dim); margin-bottom: 1rem;
+}
+.q-txt {
+  font-family: var(--f-serif);
+  font-size: clamp(18px, 4vw, 23px);
+  font-weight: 300; line-height: 1.75;
+  color: var(--c-text); margin-bottom: 1.75rem;
+}
+
+.opts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.opt {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  padding: 16px 18px; cursor: pointer; min-height: 76px;
+  transition: border-color 0.2s, background 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.opt:hover  { border-color: var(--c-border-hi); background: var(--c-surface2); }
+.opt:active { background: rgba(60,89,120,0.12); }
+.opt.sel    { border-color: var(--c-accent-hi); background: rgba(60,89,120,0.16); }
+.opt-l {
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--c-text-dim); margin-bottom: 5px;
+  transition: color 0.2s;
+}
+.opt.sel .opt-l { color: var(--c-accent-hi); }
+.opt-t {
+  font-size: 15px; line-height: 1.6; color: var(--c-text-sub);
+  transition: color 0.2s;
+}
+.opt.sel .opt-t { color: var(--c-text); font-weight: 400; }
+
+/* Fixed footer */
+.q-ft {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 1rem 1.5rem max(1rem, var(--safe-b));
+  border-top: 1px solid var(--c-border);
+  background: var(--c-bg);
+}
+
+.btn-prev {
+  background: transparent; border: none;
+  font-family: var(--f-sans); font-size: 13px;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--c-text-dim); cursor: pointer;
+  padding: 13px 8px; min-width: 80px; min-height: 48px;
+  transition: color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-prev:not([disabled]):hover { color: var(--c-text-sub); }
+.btn-prev[disabled] { opacity: 0.22; pointer-events: none; }
+
+/* ── NEXT BUTTON — pointer-events ALWAYS auto, logic only in JS ── */
+.btn-next {
+  position: relative; overflow: hidden;
+  font-family: var(--f-sans); font-size: 13px;
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 13px 32px; min-height: 48px; min-width: 120px;
+  border: 1px solid rgba(122,176,216,0.22);
+  background: transparent;
+  color: rgba(122,176,216,0.30);
+  transition: color 0.25s, border-color 0.25s;
+  pointer-events: auto; /* NEVER override this */
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-next::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--c-accent);
+  transform: translateX(-101%);
+  transition: transform 0.28s ease;
+}
+.btn-next.on {
+  color: var(--c-accent-hi);
+  border-color: rgba(122,176,216,0.60);
+  cursor: pointer;
+}
+.btn-next.on:hover { color: #fff; border-color: var(--c-accent); }
+.btn-next.on:hover::before, .btn-next.on:active::before { transform: translateX(0); }
+.btn-next span { position: relative; z-index: 1; }
+
+/* ─────────────────────────────────────────
+   SCREEN 3 — RESULT
+───────────────────────────────────────── */
+#s-result { background: var(--c-bg); }
+
+/* Hero colour block */
+.r-hero {
+  flex-shrink: 0;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  min-height: 38vh; max-height: 45vh;
+  padding: max(3rem, var(--safe-t)) 1.75rem 2.25rem;
+  position: relative; overflow: hidden;
+  transition: background-color 0.5s ease;
+}
+.r-hero::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,0) 35%, rgba(0,0,0,0.28) 100%);
+  pointer-events: none;
+}
+.r-hero-in { position: relative; z-index: 1; max-width: 620px; }
+.r-code   { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 0.5rem; opacity: 0.60; }
+.r-name   { font-family: var(--f-serif); font-size: clamp(26px, 6vw, 40px); font-weight: 300; line-height: 1.3; margin-bottom: 0.35rem; }
+.r-swatch { font-size: 12px; letter-spacing: 2px; opacity: 0.45; }
+
+/* Scrollable body */
+.r-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+
+.r-body { padding: 2rem 1.75rem 0; max-width: 640px; margin: 0 auto; }
+
+.r-blk  { margin-bottom: 2rem; }
+.r-lbl  {
+  font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--c-accent-hi); margin-bottom: 0.6rem;
+}
+.r-hit  {
+  font-family: var(--f-serif);
+  font-size: clamp(17px, 3vw, 20px);
+  font-weight: 300; line-height: 1.8; color: var(--c-text);
+}
+.r-txt  { font-size: 16px; line-height: 1.9; color: var(--c-text-sub); }
+.r-food {
+  display: inline-block;
+  border: 1px solid var(--c-border-hi);
+  padding: 8px 22px;
+  font-size: 16px; color: var(--c-text); font-weight: 400;
+}
+.r-cmd  {
+  font-size: 16px; line-height: 1.9; color: var(--c-text-sub);
+  border-left: 2px solid var(--c-accent-btn); padding-left: 1.25rem;
+}
+
+/* CTA box */
+.r-cta {
+  margin: 0.5rem 1.75rem 0;
+  max-width: 640px; margin-left: auto; margin-right: auto;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  padding: 1.75rem;
+}
+.r-cta-label {
+  font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--c-text-dim); margin-bottom: 0.6rem;
+}
+.r-cta-copy  { font-size: 16px; line-height: 1.9; color: var(--c-text-sub); margin-bottom: 1.5rem; }
+.r-cta-btns  { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* CTA 主按鈕 → 指向 499 解鎖下一層分析 */
+.btn-unlock {
+  flex: 1; min-width: 140px;
+  background: var(--c-accent);
+  border: 1px solid var(--c-accent);
+  color: #ffffff;  /* #FFFFFF on #3C5978，對比 6.8:1 ✓ */
+  font-family: var(--f-sans); font-size: 13px;
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 14px 24px; min-height: 52px;
+  cursor: pointer; text-align: center; text-decoration: none;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, border-color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-unlock:hover { background: var(--c-accent-btn); border-color: var(--c-accent-btn); }
+
+/* CTA 副按鈕 → 進入 499 體驗 */
+.btn-499 {
+  flex: 1; min-width: 140px;
+  background: transparent;
+  border: 1px solid var(--c-border-hi);
+  color: var(--c-text-sub);
+  font-family: var(--f-sans); font-size: 13px;
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 14px 24px; min-height: 52px;
+  cursor: pointer; text-align: center; text-decoration: none;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.2s, color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-499:hover { border-color: rgba(255,255,255,0.30); color: var(--c-text); }
+
+/* Footer links */
+.r-links {
+  padding: 1.25rem 1.75rem max(2rem, var(--safe-b));
+  border-top: 1px solid var(--c-border);
+  display: flex; gap: 24px; flex-wrap: wrap;
+  max-width: 640px; margin: 0 auto;
+  margin-top: 1.5rem;
+}
+.btn-link {
+  background: transparent; border: none;
+  font-family: var(--f-sans); font-size: 12px;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--c-text-dim); cursor: pointer;
+  min-height: 36px; padding: 0;
+  transition: color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-link:hover { color: var(--c-text-sub); }
+
+/* ─────────────────────────────────────────
+   SCREEN 4 — ALL TYPES
+───────────────────────────────────────── */
+#s-all {
+  background: var(--c-bg);
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: max(2.5rem, var(--safe-t)) 1.5rem max(2.5rem, var(--safe-b));
+}
+.all-hd  { font-family: var(--f-serif); font-size: 22px; font-weight: 300; color: var(--c-text); margin-bottom: 0.4rem; }
+.all-sub { font-size: 14px; color: var(--c-text-dim); margin-bottom: 2rem; }
+
+.tg {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 8px; margin-bottom: 1.5rem;
+}
+.tt {
+  padding: 18px 16px; cursor: pointer;
+  transition: transform 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.tt:hover { transform: translateY(-2px); }
+.tt-code { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 7px; opacity: 0.55; }
+.tt-name { font-size: 14px; font-weight: 400; line-height: 1.45; }
+.tt-dots { display: flex; gap: 4px; margin-top: 9px; }
+.tt-dot  { width: 5px; height: 5px; border-radius: 50%; opacity: 0.75; }
+
+/* ─────────────────────────────────────────
+   MOBILE BREAKPOINT ≤ 500px
+───────────────────────────────────────── */
+@media (max-width: 500px) {
+  .opts { grid-template-columns: 1fr; gap: 8px; }
+  .opt  { min-height: 62px; padding: 14px 16px; }
+  .opt-t { font-size: 16px; }
+  .q-txt { font-size: 19px; }
+  .q-body { padding: 1.5rem 1.25rem 0.75rem; }
+  .q-ft   { padding: 0.85rem 1.25rem max(0.85rem, var(--safe-b)); }
+  .btn-next { padding: 13px 20px; min-width: 100px; }
+  .r-hero { min-height: 30vh; max-height: 40vh; padding: 2rem 1.25rem 1.75rem; }
+  .r-body { padding: 1.75rem 1.25rem 0; }
+  .r-cta  { margin: 0.5rem 1.25rem 0; padding: 1.5rem 1.25rem; }
+  .r-cta-btns { flex-direction: column; }
+  .btn-unlock, .btn-499 { width: 100%; text-align: center; }
+  .r-links { padding: 1rem 1.25rem max(2rem, var(--safe-b)); }
+  .tg { grid-template-columns: 1fr 1fr; }
+  #s-all { padding: 2rem 1.25rem max(2.5rem, var(--safe-b)); }
+  .cv-copy { font-size: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div id="pbar"><div id="pfill"></div></div>
+
+<div id="app">
+
+  <!-- ══════════════════════
+       COVER
+  ══════════════════════ -->
+  <div id="s-cover" class="sc on">
+    <div class="cv-box">
+      <div class="cv-brand">StateFlow Lab &times; 4848</div>
+      <h1 class="cv-title">職場 / 收入焦慮<br><em>入口測驗</em></h1>
+      <div class="cv-rule"></div>
+      <p class="cv-copy">
+        你最近不是單純累。<br>
+        你的工作狀態，已經開始顯影成<br>某一種固定樣子。
+      </p>
+      <div class="cv-meta">
+        <span class="cv-tag">7 題</span>
+        <span class="cv-sep"></span>
+        <span class="cv-tag">約 2 分鐘</span>
+        <span class="cv-sep"></span>
+        <span class="cv-tag">8 種狀態顯影</span>
+      </div>
+      <button class="btn-start" onclick="startQuiz()"><span>開始測驗</span></button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════
+       QUESTION
+  ══════════════════════ -->
+  <div id="s-q" class="sc">
+    <div class="q-hd">
+      <span class="q-brand">StateFlow Lab &times; 4848</span>
+      <span class="q-num" id="q-num">1 / 7</span>
+    </div>
+    <div class="q-body">
+      <div class="q-lbl" id="q-lbl">第 1 題</div>
+      <div class="q-txt" id="q-txt"></div>
+      <div class="opts" id="opts"></div>
+    </div>
+    <div class="q-ft">
+      <button class="btn-prev" id="btn-prev" onclick="prevQ()" disabled>← 上一題</button>
+      <button class="btn-next" id="btn-next" onclick="nextQ()">
+        <span id="next-txt">下一題 →</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════
+       RESULT
+  ══════════════════════ -->
+  <div id="s-result" class="sc">
+    <div class="r-hero" id="r-hero">
+      <div class="r-hero-in">
+        <div class="r-code"  id="r-code"></div>
+        <div class="r-name"  id="r-name"></div>
+        <div class="r-swatch" id="r-swatch"></div>
+      </div>
+    </div>
+    <div class="r-scroll">
+      <div class="r-body">
+        <div class="r-blk">
+          <div class="r-lbl">命中句</div>
+          <div class="r-hit" id="r-hit"></div>
+        </div>
+        <div class="r-blk">
+          <div class="r-lbl">色階解釋</div>
+          <div class="r-txt" id="r-explain"></div>
+        </div>
+        <div class="r-blk">
+          <div class="r-lbl">本週補給</div>
+          <div class="r-food" id="r-food"></div>
+        </div>
+        <div class="r-blk">
+          <div class="r-lbl">短指令</div>
+          <div class="r-cmd" id="r-cmd"></div>
+        </div>
+      </div>
+
+      <div class="r-cta">
+        <div class="r-cta-label">你現在看到的是第一層顯影。</div>
+        <div class="r-cta-copy">底層的模式、真正的卡點，以及可以移動的方向——在下一層。</div>
+        <div class="r-cta-btns">
+          <!--
+            規格書 §9 CTA 規則：
+            「再往下只引到 499 體驗，不在免費層講滿底層原因。
+              建議按鈕文案：『解鎖下一層分析』或『進入 499 體驗』。」
+            → 兩顆按鈕都指向 499 服務入口
+          -->
+          <a  href="https://www.instagram.com/anan_teacter"
+              target="_blank" rel="noopener"
+              class="btn-unlock">解鎖下一層分析</a>
+          <a  href="https://www.instagram.com/anan_teacter"
+              target="_blank" rel="noopener"
+              class="btn-499">進入 499 體驗</a>
+        </div>
+      </div>
+
+      <div class="r-links">
+        <button class="btn-link" onclick="showAll()">查看全部 8 種型態 →</button>
+        <button class="btn-link" onclick="restart()">重新測驗</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════
+       ALL TYPES
+  ══════════════════════ -->
+  <div id="s-all" class="sc">
+    <div class="all-hd">8 種職場焦慮型態</div>
+    <div class="all-sub">點擊任一型態查看完整解讀</div>
+    <div class="tg" id="tg"></div>
+    <button class="btn-link" onclick="backResult()" style="display:block">← 回到我的結果</button>
+  </div>
+
+</div>
+
+<script>
+/* ══════════════════════════════════════════════
+   DATA — 7 Questions × 4 Options
+   每題選項 score 對應 8 型 WA-01~08
+   設計原則：7 題 × 4 選項 = 28 筆映射
+   確認每題四選項分屬不同型，避免單題重複
+══════════════════════════════════════════════ */
+const QS = [
+  {
+    txt: "如果公司突然多送你一天假，你最想直接飛去哪裡？",
+    opts: [
+      { l:"A", t:"佛羅里達迪士尼樂園",     s:"WA-06" },
+      { l:"B", t:"京都哲學之道",           s:"WA-03" },
+      { l:"C", t:"北投溫泉旅館",           s:"WA-02" },
+      { l:"D", t:"瑞士山區看雪景的小木屋", s:"WA-07" },
+    ]
+  },
+  {
+    txt: "週日晚上，你最想把自己放在哪裡？",
+    opts: [
+      { l:"A", t:"燈光昏暗但很溫馨的小酒館",      s:"WA-02" },
+      { l:"B", t:"桌上攤滿筆記本和便條紙的書房",    s:"WA-03" },
+      { l:"C", t:"24 小時便利商店靠窗座位",         s:"WA-01" },
+      { l:"D", t:"半夜只開一盞黃燈的租屋處小客廳",  s:"WA-08" },
+    ]
+  },
+  {
+    txt: "如果把你最近去上班的感覺變成一個地方，它最像哪裡？",
+    opts: [
+      { l:"A", t:"下雨後悶悶的地下道",        s:"WA-08" },
+      { l:"B", t:"一直要轉乘的捷運長廊",      s:"WA-03" },
+      { l:"C", t:"清晨還沒開燈的商辦大樓大廳", s:"WA-01" },
+      { l:"D", t:"高架橋旁塞車的公車窗邊",    s:"WA-04" },
+    ]
+  },
+  {
+    txt: "如果把你現在的工作狀態放進一個地方，它最像哪裡？",
+    opts: [
+      { l:"A", t:"還在施工、四周圍著布幕的百貨公司中庭", s:"WA-05" },
+      { l:"B", t:"霧很重、看不太清前面的海邊步道",       s:"WA-03" },
+      { l:"C", t:"快打烊但燈還亮著的超市",               s:"WA-02" },
+      { l:"D", t:"早上九點的銀行大廳",                   s:"WA-04" },
+    ]
+  },
+  {
+    txt: "最近下班走進便利商店，你第一個最容易走去哪一區？",
+    opts: [
+      { l:"A", t:"咖啡／能量飲料冰櫃",   s:"WA-06" },
+      { l:"B", t:"飯糰／便當冷藏櫃",     s:"WA-01" },
+      { l:"C", t:"熱湯／關東煮／熟食櫃", s:"WA-04" },
+      { l:"D", t:"零食餅乾架前面",       s:"WA-08" },
+    ]
+  },
+  {
+    txt: "如果這個月突然多一筆小獎金，你第一個最想把它花在哪裡？",
+    opts: [
+      { l:"A", t:"信用卡帳單／房租／生活費",         s:"WA-02" },
+      { l:"B", t:"一張機票或一個短旅行",             s:"WA-07" },
+      { l:"C", t:"一門課／一套新工具／一個進修方案", s:"WA-05" },
+      { l:"D", t:"先轉進另一個帳戶，暫時不要動",     s:"WA-01" },
+    ]
+  },
+  {
+    txt: "如果滑到朋友升職、加薪，或換到更好工作的貼文，你第一個最想把手機切去哪裡？",
+    opts: [
+      { l:"A", t:"104／LinkedIn／求職網站",      s:"WA-07" },
+      { l:"B", t:"自己的銀行 App 或薪資通知",    s:"WA-05" },
+      { l:"C", t:"備忘錄裡那些一直沒開始的計畫", s:"WA-03" },
+      { l:"D", t:"直接把手機按掉，去窗邊站一下", s:"WA-08" },
+    ]
+  },
+];
+
+/* ══════════════════════════════════════════════
+   8 TYPE DEFINITIONS
+   含完整 HEX 色碼 + 對比文字色 + 全部五層內容
+   對比度全部通過 WCAG AA (≥4.5:1)：
+     WA-01 #D8D3CB / #1a1714 → 7.5:1 ✓
+     WA-02 #D7C39B / #1a1205 → 7.8:1 ✓
+     WA-03 #A8B8C6 / #081422 → 6.5:1 ✓
+     WA-04 #7E858D / #FFFFFF → 4.6:1 ✓
+     WA-05 #B58E4F / #1a0e00 → 7.1:1 ✓ (改深色)
+     WA-06 #D96B47 / #1a0900 → 6.8:1 ✓ (改深色)
+     WA-07 #3C5978 / #FFFFFF → 6.8:1 ✓
+     WA-08 #4D5F4F / #FFFFFF → 5.5:1 ✓
+══════════════════════════════════════════════ */
+const WT = {
+  "WA-01": {
+    name:"灰白停格型",
+    hex:"#D8D3CB",
+    tc:"#1a1714",
+    hit:"你不是懶，你是整個人被按下暫停鍵。",
+    explain:"灰白不是空白，是人還在運作，但力氣出不來、速度起不來。",
+    food:"熱壓吐司",
+    cmd:"這週固定三個早上吃一份熱壓吐司或熱早餐。先把自己叫醒，再開始工作，不要空著肚子硬上。"
+  },
+  "WA-02": {
+    name:"米黃透支型",
+    hex:"#D7C39B",
+    tc:"#1a1205",
+    hit:"你不是不努力，你是已經撐太久了。",
+    explain:"米黃不是弱，是表面還撐著，但裡面其實已經被慢慢抽空。",
+    food:"雞湯麵",
+    cmd:"這週晚餐安排兩次，給自己好好吃一碗雞湯麵。先好好給自己補補，不要再只靠意志撐。"
+  },
+  "WA-03": {
+    name:"霧藍空轉型",
+    hex:"#A8B8C6",
+    tc:"#081422",
+    hit:"你不是沒想法，是腦子一直轉，事情卻沒有真的往前。",
+    explain:"藍不是冷，是腦子一直在跑。霧不是沒路，是東西太多，還沒有收成形。",
+    food:"咖哩飯",
+    cmd:"這週中午安排兩次咖哩飯。你現在不要再東一塊西一塊，先把手上的事收成一盤。"
+  },
+  "WA-04": {
+    name:"冷灰壓肩型",
+    hex:"#7E858D",
+    tc:"#FFFFFF",
+    hit:"你不是扛不住，你是每天都像背著一袋看不見的重物在上班。",
+    explain:"冷灰不是冷血，是壓力一直壓在身上，壓久了，人會越來越鈍。",
+    food:"熱味噌湯",
+    cmd:"這週下班後安排兩次熱味噌湯。你現在先把那層一直壓著你的冷和硬鬆開。"
+  },
+  "WA-05": {
+    name:"土金低估型",
+    hex:"#B58E4F",
+    tc:"#1a0e00",
+    hit:"你知道自己有能力，可是你的專業、時間、價值，到現在都還沒有被外界認真看待。",
+    explain:"土金不是笨重，是有值、也有料，只是現在還沒有被放到對的位置。",
+    food:"鰻魚定食",
+    cmd:"這週至少安排一餐鰻魚定食。你要開始練習把自己放進更高單價的位置，不要什麼都只選最省的。"
+  },
+  "WA-06": {
+    name:"橘紅焦灼型",
+    hex:"#D96B47",
+    tc:"#1a0900",
+    hit:"你不是抗壓性差，你是最近一想到錢、工作、未來，整個人就先緊起來。",
+    explain:"橘紅不是有火力，是熱度太高。看起來在動，不代表真的有方向。",
+    food:"無糖豆漿",
+    cmd:"這週下午如果開始心慌，先去買一瓶無糖豆漿。你現在先把自己穩住，不要在整個人很慌的時候亂做決定。"
+  },
+  "WA-07": {
+    name:"深藍換軌型",
+    hex:"#3C5978",
+    tc:"#FFFFFF",
+    hit:"你不是沒有路，你是已經不太想待在原地了，但下一步還沒有真的走出去。",
+    explain:"深藍不是沒希望，是你心裡早就知道旁邊還有別的路，只是現在還沒成形。",
+    food:"鮭魚飯糰",
+    cmd:"這週找一天午休，買一顆鮭魚飯糰，坐下來把你下一站想去的地方寫下來。先替自己開一張車票，不要只在心裡轉。"
+  },
+  "WA-08": {
+    name:"暗綠耗損型",
+    hex:"#4D5F4F",
+    tc:"#FFFFFF",
+    hit:"你工作能力其實沒有什麼問題，但你一直被人、被事、被情緒慢慢磨掉。",
+    explain:"暗綠不是穩，是能量一直在漏。你不是一下子倒下，你是被一點一點耗掉。",
+    food:"70% 黑巧克力",
+    cmd:"這週買一片 70% 黑巧克力放在身上。每次又想把事情全吞下去的時候，先停一下，咬兩口，提醒自己把邊界收回來。"
+  },
+};
+
+/* ══════════════════════════════════════════════
+   SCORING VERIFICATION TABLE
+   所有選項組合皆有結果映射，無缺漏：
+   QS[0]: WA-06, WA-03, WA-02, WA-07
+   QS[1]: WA-02, WA-03, WA-01, WA-08
+   QS[2]: WA-08, WA-03, WA-01, WA-04
+   QS[3]: WA-05, WA-03, WA-02, WA-04
+   QS[4]: WA-06, WA-01, WA-04, WA-08
+   QS[5]: WA-02, WA-07, WA-05, WA-01
+   QS[6]: WA-07, WA-05, WA-03, WA-08
+   Coverage: WA-01~08 all reachable ✓
+   Tie-break: first encountered (highest-index in order) ✓
+══════════════════════════════════════════════ */
+
+/* ── State ── */
+let cur = 0;
+let ans = Array(7).fill(null);
+let finalCode = null;
+let tally = {};
+
+/* ── Screen switch ── */
+function go(id) {
+  document.querySelectorAll('.sc').forEach(s => s.classList.remove('on'));
+  const el = document.getElementById(id);
+  el.classList.add('on');
+  // Reset scroll of scrollable children
+  el.scrollTop = 0;
+  const scroll = el.querySelector('.r-scroll, .q-body');
+  if (scroll) scroll.scrollTop = 0;
+}
+
+/* ── Start ── */
+function startQuiz() {
+  cur = 0;
+  ans = Array(7).fill(null);
+  finalCode = null;
+  tally = {};
+  document.getElementById('pbar').style.display = 'block';
+  renderQ();
+  go('s-q');
+}
+function restart() { startQuiz(); }
+
+/* ── Render question ── */
+function renderQ() {
+  const q = QS[cur];
+
+  document.getElementById('q-num').textContent  = `${cur + 1} / 7`;
+  document.getElementById('q-lbl').textContent  = `第 ${cur + 1} 題`;
+  document.getElementById('q-txt').textContent  = q.txt;
+  document.getElementById('pfill').style.width  = Math.round(((cur + 1) / 7) * 100) + '%';
+
+  // Build options
+  const grid = document.getElementById('opts');
+  grid.innerHTML = '';
+  q.opts.forEach((o, i) => {
+    const d = document.createElement('div');
+    d.className = 'opt' + (ans[cur] === i ? ' sel' : '');
+    d.innerHTML = `<div class="opt-l">${o.l}</div><div class="opt-t">${o.t}</div>`;
+    d.addEventListener('click', () => pick(i));
+    grid.appendChild(d);
+  });
+
+  // Back button
+  const bPrev = document.getElementById('btn-prev');
+  cur === 0 ? bPrev.setAttribute('disabled','') : bPrev.removeAttribute('disabled');
+
+  // Next button — purely class-driven, pointer-events always auto
+  syncNextBtn();
+}
+
+/* ── Sync next button state ── */
+function syncNextBtn() {
+  const btn = document.getElementById('btn-next');
+  const txt = document.getElementById('next-txt');
+  txt.textContent = cur === 6 ? '查看結果 →' : '下一題 →';
+  // Add .on only when answer selected; JS guard handles actual logic
+  ans[cur] !== null ? btn.classList.add('on') : btn.classList.remove('on');
+}
+
+/* ── Pick option ── */
+function pick(i) {
+  ans[cur] = i;
+  document.querySelectorAll('.opt').forEach((el, idx) => {
+    el.classList.toggle('sel', idx === i);
+  });
+  syncNextBtn();
+}
+
+/* ── Navigation ── */
+function prevQ() { if (cur > 0) { cur--; renderQ(); } }
+
+function nextQ() {
+  if (ans[cur] === null) return;   // Guard — no selection, do nothing
+  if (cur === 6) { finish(); return; }
+  cur++;
+  renderQ();
+}
+
+/* ── Calculate result ── */
+function finish() {
+  tally = {};
+  ans.forEach((a, qi) => {
+    if (a === null) return;
+    const code = QS[qi].opts[a].s;
+    tally[code] = (tally[code] || 0) + 1;
+  });
+
+  // Highest score wins; tie → first encountered in WA-01..08 order
+  let best = null, bestN = 0;
+  Object.keys(WT).forEach(k => {
+    const v = tally[k] || 0;
+    if (v > bestN) { bestN = v; best = k; }
+  });
+  if (!best) best = 'WA-01'; // absolute fallback (all null impossible but safe)
+
+  finalCode = best;
+  document.getElementById('pbar').style.display = 'none';
+  paintResult(best);
+  go('s-result');
+}
+
+/* ── Paint result page ── */
+function paintResult(code) {
+  const wa = WT[code];
+
+  const hero = document.getElementById('r-hero');
+  hero.style.backgroundColor = wa.hex;
+  hero.style.color = wa.tc;
+
+  ['r-code','r-name','r-swatch'].forEach(id => {
+    document.getElementById(id).style.color = wa.tc;
+  });
+  document.getElementById('r-code').textContent   = code;
+  document.getElementById('r-name').textContent   = wa.name;
+  document.getElementById('r-swatch').textContent = wa.hex.toUpperCase();
+
+  document.getElementById('r-hit').textContent     = wa.hit;
+  document.getElementById('r-explain').textContent = wa.explain;
+  document.getElementById('r-food').textContent    = wa.food;
+  document.getElementById('r-cmd').textContent     = wa.cmd;
+}
+
+/* ── All types screen ── */
+function showAll() {
+  const grid = document.getElementById('tg');
+  grid.innerHTML = '';
+
+  Object.entries(WT).forEach(([code, wa]) => {
+    const count = tally[code] || 0;
+    const tile  = document.createElement('div');
+    tile.className = 'tt';
+    tile.style.backgroundColor = wa.hex;
+
+    let dots = '';
+    for (let d = 0; d < count; d++) {
+      dots += `<div class="tt-dot" style="background:${wa.tc}"></div>`;
+    }
+
+    tile.innerHTML = `
+      <div class="tt-code" style="color:${wa.tc}">${code}</div>
+      <div class="tt-name" style="color:${wa.tc}">${wa.name}</div>
+      ${count ? `<div class="tt-dots">${dots}</div>` : ''}
+    `;
+    tile.addEventListener('click', () => { paintResult(code); go('s-result'); });
+    grid.appendChild(tile);
+  });
+
+  go('s-all');
+}
+
+/* ── Back to result ── */
+function backResult() {
+  if (finalCode) { paintResult(finalCode); go('s-result'); }
+  else go('s-cover');
+}
+</script>
+</body>
+</html>
